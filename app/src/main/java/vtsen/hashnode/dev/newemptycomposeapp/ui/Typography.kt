@@ -1,14 +1,12 @@
 package vtsen.hashnode.dev.newemptycomposeapp.ui
 
 import androidx.compose.material3.Typography
-import androidx.compose.ui.text.TextStyle  // این ایمپورت فراموش شده
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp  // این ایمپورت فراموش شده
-
-// ایمپورت R باید صحیح باشد:
-import vtsen.hashnode.dev.newemptycomposeapp.R  // نه vtsen.hashnode.dev.newemptycomposeapp.ui.R
+import androidx.compose.ui.unit.sp
+import vtsen.hashnode.dev.newemptycomposeapp.R
 
 val AppFontFamily = FontFamily(
     Font(R.font.font, FontWeight.Normal),
