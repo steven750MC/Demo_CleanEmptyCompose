@@ -1,3 +1,4 @@
+
 package vtsen.hashnode.dev.newemptycomposeapp.ui
 
 import android.Manifest
@@ -63,6 +64,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.material3.Switch
+import androidx.compose.ui.draw.scale
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
@@ -74,10 +77,10 @@ import retrofit2.http.Query
 import java.io.File
 import java.util.concurrent.TimeUnit
 
+
 // =========================================================================================
 //  مدل‌های داده
 // =========================================================================================
-
 data class SongItem(
     val id: Long,
     val title: String,
@@ -86,7 +89,7 @@ data class SongItem(
     val durationMs: Long,
     val filePath: String,
     var hasLrc: Boolean,
-    var selected: Boolean = true,
+    var selected: Boolean = false,
 )
 
 data class LrcLibResponse(
@@ -148,16 +151,29 @@ object LrcLibClient {
 // =========================================================================================
 
 object TextCleaner {
-    // حذف بخش‌هایی مثل [musicfeed.ir] یا (downloadsong.ir) که شامل یک دامنه هستند
-    private val domainTagRegex = Regex("""[\[\(][^\]\)]*\.[a-zA-Z]{2,}[^\]\)]*[\]\)]""")
-    private val emptyBracketsRegex = Regex("""[\[\(]\s*[\]\)]""")
+    private val bracketRegex = Regex("""[\[\(\)\]{}<>]""")
+    private val allBracketsContentRegex = Regex("""[\[\(<{][^\]\)>}]*[\]\)>}]""")
+    private val tildeRegex = Regex("""~""")
+    private val underscoreRegex = Regex("""_""")
+    private val mentionRegex = Regex("""@\S+""")
+    private val domainRegex = Regex("""\S+\.[a-zA-Z]{2,3}(?:/\S*)?(?:\s|$)""")
     private val multiSpaceRegex = Regex("""\s{2,}""")
 
     fun clean(raw: String): String {
         var s = raw
-        s = domainTagRegex.replace(s, "")
-        s = emptyBracketsRegex.replace(s, "")
-        s = s.trim().trim('-', '|', '_')
+        // 1- حذف محتوای داخل براکت‌ها
+        s = allBracketsContentRegex.replace(s, " ")
+        // حذف براکت‌های باقی‌مانده
+        s = bracketRegex.replace(s, " ")
+        // 2- حذف ~
+        s = tildeRegex.replace(s, "")
+        // 3- تبدیل _ به Space
+        s = underscoreRegex.replace(s, " ")
+        // 4- حذف @ و هر چیزی بعدش تا Space
+        s = mentionRegex.replace(s, " ")
+        // 5- حذف آدرس سایت‌ها
+        s = domainRegex.replace(s, " ")
+        // 6- پاکسازی فاصله‌های اضافی و trim
         s = multiSpaceRegex.replace(s, " ")
         return s.trim()
     }
@@ -170,47 +186,71 @@ object TextCleaner {
 object MusicRepository {
 
     fun scanAudioFiles(context: Context): List<SongItem> {
-        val songs = mutableListOf<SongItem>()
-        val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.DATA,
-        )
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
-        val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
+    val songs = mutableListOf<SongItem>()
+    val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+    val projection = arrayOf(
+        MediaStore.Audio.Media._ID,
+        MediaStore.Audio.Media.TITLE,
+        MediaStore.Audio.Media.ARTIST,
+        MediaStore.Audio.Media.ALBUM,
+        MediaStore.Audio.Media.DURATION,
+        MediaStore.Audio.Media.DATA,
+    )
+    val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+    val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
 
-        context.contentResolver.query(collection, projection, selection, null, sortOrder)?.use { cursor ->
-            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-            val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+    context.contentResolver.query(collection, projection, selection, null, sortOrder)?.use { cursor ->
+        val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+        val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+        val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+        val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+        val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+        val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
-            while (cursor.moveToNext()) {
-                val path = cursor.getString(dataCol) ?: continue
-                val file = File(path)
-                if (!file.exists()) continue
-                val lrcFile = lrcFileFor(file)
-                songs.add(
-                    SongItem(
-                        id = cursor.getLong(idCol),
-                        title = cursor.getString(titleCol) ?: file.nameWithoutExtension,
-                        artist = cursor.getString(artistCol) ?: "",
-                        album = cursor.getString(albumCol) ?: "",
-                        durationMs = cursor.getLong(durationCol),
-                        filePath = path,
-                        hasLrc = lrcFile.exists(),
-                    )
-                )
+        while (cursor.moveToNext()) {
+            val path = cursor.getString(dataCol) ?: continue
+            val file = File(path)
+            if (!file.exists()) continue
+            val lrcFile = lrcFileFor(file)
+            val rawTitle = cursor.getString(titleCol) ?: file.nameWithoutExtension
+            val rawArtist = cursor.getString(artistCol) ?: ""
+            var finalTitle = rawTitle.trim()
+            var finalArtist = rawArtist.trim()
+            if (finalArtist.isEmpty()) {
+                val dashCount = finalTitle.count { it == '-' }
+                if (dashCount == 1) {
+                    val parts = finalTitle.split("-")
+                    if (parts.size == 2) {
+                        val extractedArtist = parts[0].trim()
+                        val extractedTitle = parts[1].trim()    
+                        if (extractedArtist.isNotEmpty() && extractedTitle.isNotEmpty()) {
+                            finalArtist = extractedArtist
+                            finalTitle = extractedTitle
+                        }
+                    }
+                }
             }
+            
+            
+            if (finalArtist.isEmpty()) {
+                continue
+            }
+            
+            songs.add(
+                SongItem(
+                    id = cursor.getLong(idCol),
+                    title = finalTitle,
+                    artist = finalArtist,
+                    album = cursor.getString(albumCol)?.trim() ?: "",
+                    durationMs = cursor.getLong(durationCol),
+                    filePath = path,
+                    hasLrc = lrcFile.exists(),
+                )
+            )
         }
-        return songs
     }
+    return songs
+}
 
     private fun lrcFileFor(audioFile: File): File =
         File(audioFile.parentFile, audioFile.nameWithoutExtension + ".lrc")
@@ -250,7 +290,15 @@ object MusicRepository {
         val lrcFile = lrcFileFor(audioFile)
         return if (lrcFile.exists()) lrcFile.delete() else true
     }
-
+   fun copyLrcToClipboard(context: Context, song: SongItem) {
+        val lrcFile = File(File(song.filePath).parentFile, File(song.filePath).nameWithoutExtension + ".lrc")
+        if (lrcFile.exists()) {
+           val text = lrcFile.readText()
+           val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+           val clip = android.content.ClipData.newPlainText("LRC", text)
+           clipboard.setPrimaryClip(clip)
+        }
+    }
     /** تابع خالی برای دکمه ترجمه؛ عمداً کاری انجام نمی‌دهد. */
     fun translateLrcToPersian(song: SongItem) {
         // TODO: هنوز پیاده‌سازی نشده است.
@@ -461,7 +509,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            MaterialTheme(typography = AppTypography){
                 Surface(modifier = Modifier.fillMaxSize()) {
                     AppRoot()
                 }
@@ -527,7 +575,7 @@ fun PermissionRequestScreen(onRequestClick: () -> Unit) {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "برای اسکن آهنگ‌ها و ذخیره‌ی فایل‌های LRC، دسترسی کامل به حافظه لازم است.",
+            text = "برای اسکن آهنگ‌ها و ذخیره‌ی فایل‌های متنی، دسترسی کامل به حافظه لازم است.",
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -540,7 +588,7 @@ fun PermissionRequestScreen(onRequestClick: () -> Unit) {
 @Composable
 fun MainScreen(viewModel: MusicLyricsViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("آهنگ‌ها", "لیست LRC")
+    val tabs = listOf("آهنگ‌ها", "متن‌ها")
 
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = selectedTab) {
@@ -565,6 +613,11 @@ fun SongsScreen(viewModel: MusicLyricsViewModel) {
     val status by viewModel.status.collectAsState()
     val currentIndex by viewModel.currentIndex.collectAsState()
     val currentTotal by viewModel.currentTotal.collectAsState()
+    
+    // محاسبه وضعیت انتخاب همه
+    val selectableSongs = songs.filter { !it.hasLrc } // آهنگ‌هایی که قابل انتخاب هستند
+    val allSelected = selectableSongs.isNotEmpty() && selectableSongs.all { it.selected }
+    val someSelected = selectableSongs.any { it.selected }
 
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(
@@ -572,10 +625,33 @@ fun SongsScreen(viewModel: MusicLyricsViewModel) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("تعداد آهنگ‌ها: ${songs.size}", fontWeight = FontWeight.Bold)
-            Row {
-                TextButton(onClick = { viewModel.selectAll(true) }) { Text("انتخاب همه") }
-                TextButton(onClick = { viewModel.selectAll(false) }) { Text("لغو انتخاب") }
+            Column {
+                Text("تعداد کل: ${songs.size}", fontWeight = FontWeight.Bold)
+                Text(
+                    "قابل انتخاب: ${selectableSongs.size}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colors.onSurfaceVariant
+                )
+            }
+            
+            // Switch برای انتخاب همه
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    if (allSelected) "لغو انتخاب همه" else "انتخاب همه",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Switch(
+                    checked = allSelected,
+                    onCheckedChange = { checked ->
+                        viewModel.selectAll(checked)
+                    },
+                    enabled = selectableSongs.isNotEmpty(), // غیرفعال اگر آهنگی قابل انتخاب نباشد
+                    modifier = Modifier.scale(0.8f) // کوچک‌تر کردن سوییچ (اختیاری)
+                )
             }
         }
 
@@ -584,7 +660,7 @@ fun SongsScreen(viewModel: MusicLyricsViewModel) {
         when (status) {
             ProcessStatus.SCANNING -> {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Text("در حال اسکن آهنگ‌ها...")
+                Text("در حال بررسی آهنگ‌ها...")
             }
             ProcessStatus.FETCHING -> {
                 LinearProgressIndicator(
@@ -603,8 +679,9 @@ fun SongsScreen(viewModel: MusicLyricsViewModel) {
                 Button(
                     onClick = { viewModel.startFetchingLyrics() },
                     modifier = Modifier.fillMaxWidth(),
+                    enabled = someSelected // فقط وقتی فعال باشد که حداقل یک آهنگ انتخاب شده باشد
                 ) {
-                    Text("شروع دریافت LRC برای آهنگ‌های انتخاب‌شده")
+                    Text(if (someSelected) "شروع دریافت متن (${songs.count { it.selected && !it.hasLrc }})" else "شروع دریافت متن")
                 }
             }
         }
@@ -622,7 +699,6 @@ fun SongsScreen(viewModel: MusicLyricsViewModel) {
         }
     }
 }
-
 @Composable
 fun SongRow(song: SongItem, onToggle: () -> Unit) {
     Row(
@@ -631,12 +707,12 @@ fun SongRow(song: SongItem, onToggle: () -> Unit) {
     ) {
         Checkbox(checked = song.selected, onCheckedChange = { onToggle() }, enabled = !song.hasLrc)
         Column(modifier = Modifier.weight(1f)) {
-            Text(song.title, fontWeight = FontWeight.Medium)
-            Text("${song.artist} • ${song.album}", style = MaterialTheme.typography.bodySmall)
+            Text(TextCleaner.clean(song.title), fontWeight = FontWeight.Medium)
+            Text("${TextCleaner.clean(song.artist)}", style = MaterialTheme.typography.bodySmall)
             Text(formatDuration(song.durationMs), style = MaterialTheme.typography.bodySmall)
         }
         if (song.hasLrc) {
-            AssistChip(onClick = {}, label = { Text("LRC ✓") })
+            AssistChip(onClick = {}, label = { Text("متن ✓") })
         }
     }
 }
@@ -648,7 +724,7 @@ fun LrcListScreen(viewModel: MusicLyricsViewModel) {
 
     if (withLrc.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("هنوز هیچ فایل LRC ساخته نشده است.")
+            Text("هنوز هیچ متنی برای آهنگ ساخته نشده.")
         }
         return
     }
@@ -660,6 +736,7 @@ fun LrcListScreen(viewModel: MusicLyricsViewModel) {
                 onRegenerate = { viewModel.regenerateLrc(song) },
                 onDelete = { viewModel.deleteLrc(song) },
                 onTranslate = { MusicRepository.translateLrcToPersian(song) },
+                onCopyText = {copyLrcToClipboard(song)},
             )
             Divider()
         }
@@ -672,15 +749,17 @@ fun LrcRow(
     onRegenerate: () -> Unit,
     onDelete: () -> Unit,
     onTranslate: () -> Unit,
+    onCopyText: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(song.title, fontWeight = FontWeight.Medium)
-        Text(song.artist, style = MaterialTheme.typography.bodySmall)
+        Text(TextCleaner.clean(song.title), fontWeight = FontWeight.Medium)
+        Text(TextCleaner.clean(song.artist), style = MaterialTheme.typography.bodySmall)
         Spacer(modifier = Modifier.height(4.dp))
         Row {
-            TextButton(onClick = onRegenerate) { Text("بروزرسانی / یافتن دوباره") }
+            TextButton(onClick = onRegenerate) { Text("به‌روزرسانی") }
             TextButton(onClick = onDelete) { Text("حذف") }
-            TextButton(onClick = onTranslate) { Text("ترجمه به فارسی") }
+          //  TextButton(onClick = onTranslate) { Text("ترجمه") }
+            TextButton(onClick = onCopyText) { Text("کپی") }
         }
     }
 }
