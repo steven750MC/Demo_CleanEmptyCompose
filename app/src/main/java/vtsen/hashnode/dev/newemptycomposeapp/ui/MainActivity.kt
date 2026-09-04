@@ -1,4 +1,3 @@
-
 package vtsen.hashnode.dev.newemptycomposeapp.ui
 
 import android.Manifest
@@ -35,7 +34,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -49,7 +47,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -66,6 +63,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.material3.Switch
+import androidx.compose.ui.draw.scale
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
@@ -75,7 +74,8 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Query
 import java.io.File
-import java.util.concurrent.TimeUnit 
+import java.util.concurrent.TimeUnit
+
 
 // =========================================================================================
 //  مدل‌های داده
@@ -183,6 +183,18 @@ object TextCleaner {
 // =========================================================================================
 
 object MusicRepository {
+
+
+    fun copyLrcToClipboard(context: Context, song: SongItem) {
+        val audioFile = File(song.filePath)
+        val lrcFile = lrcFileFor(audioFile)
+        if (lrcFile.exists()) {
+            val text = lrcFile.readText()
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clip = android.content.ClipData.newPlainText("LRC", text)
+            clipboard.setPrimaryClip(clip)
+        }
+    }
 
     fun scanAudioFiles(context: Context): List<SongItem> {
     val songs = mutableListOf<SongItem>()
@@ -629,7 +641,7 @@ fun SongsScreen(viewModel: MusicLyricsViewModel) {
                 Text(
                     "قابل انتخاب: ${selectableSongs.size}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colors.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             
@@ -731,11 +743,11 @@ fun LrcListScreen(viewModel: MusicLyricsViewModel) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         items(withLrc, key = { it.id }) { song ->
             LrcRow(
-                song = song,
-                onRegenerate = { viewModel.regenerateLrc(song) },
-                onDelete = { viewModel.deleteLrc(song) },
-                onTranslate = { MusicRepository.translateLrcToPersian(song) },
-                onCopyText = {copyLrcToClipboard(song)},
+        song = song,
+        onRegenerate = { viewModel.regenerateLrc(song) },
+        onDelete = { viewModel.deleteLrc(song) },
+        onTranslate = { MusicRepository.translateLrcToPersian(song) },
+        onCopyText = { MusicRepository.copyLrcToClipboard(context, song) },
             )
             Divider()
         }
