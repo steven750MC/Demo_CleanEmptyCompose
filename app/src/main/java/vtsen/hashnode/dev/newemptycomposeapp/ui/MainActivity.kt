@@ -34,6 +34,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -47,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -63,8 +65,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.compose.material3.Switch
-import androidx.compose.ui.draw.scale
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Response
@@ -301,15 +301,7 @@ object MusicRepository {
         val lrcFile = lrcFileFor(audioFile)
         return if (lrcFile.exists()) lrcFile.delete() else true
     }
-   fun copyLrcToClipboard(context: Context, song: SongItem) {
-        val lrcFile = File(File(song.filePath).parentFile, File(song.filePath).nameWithoutExtension + ".lrc")
-        if (lrcFile.exists()) {
-           val text = lrcFile.readText()
-           val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-           val clip = android.content.ClipData.newPlainText("LRC", text)
-           clipboard.setPrimaryClip(clip)
-        }
-    }
+   
     /** تابع خالی برای دکمه ترجمه؛ عمداً کاری انجام نمی‌دهد. */
     fun translateLrcToPersian(song: SongItem) {
         // TODO: هنوز پیاده‌سازی نشده است.
@@ -730,6 +722,7 @@ fun SongRow(song: SongItem, onToggle: () -> Unit) {
 
 @Composable
 fun LrcListScreen(viewModel: MusicLyricsViewModel) {
+	val context = LocalContext.current
     val songs by viewModel.songs.collectAsState()
     val withLrc = songs.filter { it.hasLrc }
 
@@ -759,7 +752,7 @@ fun LrcRow(
     song: SongItem,
     onRegenerate: () -> Unit,
     onDelete: () -> Unit,
-    onTranslate: () -> Unit,
+    //onTranslate: () -> Unit,
     onCopyText: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
