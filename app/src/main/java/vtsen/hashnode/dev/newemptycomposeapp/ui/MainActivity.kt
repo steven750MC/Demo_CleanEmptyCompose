@@ -739,7 +739,7 @@ fun LrcListScreen(viewModel: MusicLyricsViewModel) {
         song = song,
         onRegenerate = { viewModel.regenerateLrc(song) },
         onDelete = { viewModel.deleteLrc(song) },
-        onTranslate = { MusicRepository.translateLrcToPersian(song) },
+        
         onCopyText = { MusicRepository.copyLrcToClipboard(context, song) },
             )
             Divider()
@@ -752,7 +752,7 @@ fun LrcRow(
     song: SongItem,
     onRegenerate: () -> Unit,
     onDelete: () -> Unit,
-    //onTranslate: () -> Unit,
+    
     onCopyText: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
