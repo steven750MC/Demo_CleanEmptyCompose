@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
@@ -335,8 +336,8 @@ object MusicRepository {
                     }
                 }
             }
-            
-            
+
+
             if (finalArtist.isEmpty()) {
                 continue
             }
@@ -825,7 +826,7 @@ fun MainScreen(viewModel: MusicLyricsViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("آهنگ‌ها", "متن‌ها", "تنظیمات")
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
         TabRow(selectedTabIndex = selectedTab) {
             tabs.forEachIndexed { index, title ->
                 Tab(
@@ -892,7 +893,7 @@ fun SongsScreen(viewModel: MusicLyricsViewModel) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            
+
             // Switch برای انتخاب همه (در محدوده‌ی نتایج فیلتر شده)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
