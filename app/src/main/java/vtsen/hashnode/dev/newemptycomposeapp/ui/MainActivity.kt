@@ -83,7 +83,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Query
-import vtsen.hashnode.dev.newemptycomposeapp.ui.theme.AppTheme
+import vtsen.hashnode.dev.newemptycomposeapp.ui.theme.NewEmptyComposeAppTheme
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -744,7 +744,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { //AppTheme از ui/theme/Theme.kt که تایپوگرافی AppTypography رو هم داخلش داره
-            AppTheme {
+            NewEmptyComposeAppTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     AppRoot()
                 }
