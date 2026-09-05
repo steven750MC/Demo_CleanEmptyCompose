@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:compileSdkVersion="32" android:compileSdkVersionCodename="13" android:versionCode="1" android:versionName="1.0" package="vtsen.hashnode.dev.newemptycomposeapp" platformBuildVersionCode="36" platformBuildVersionName="16">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:compileSdkVersion="32" android:compileSdkVersionCodename="13" android:versionCode="1" android:versionName="1.0" package="ir.steven750mc.lrc" platformBuildVersionCode="36" platformBuildVersionName="16">
 	<uses-sdk android:minSdkVersion="23" android:targetSdkVersion="36" />
 	<uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 	<uses-permission android:maxSdkVersion="32" android:name="android.permission.READ_EXTERNAL_STORAGE" />
 	<uses-permission android:maxSdkVersion="29" android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 	<uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 	<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-	<permission android:name="vtsen.hashnode.dev.newemptycomposeapp.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" android:protectionLevel="signature" />
-	<uses-permission android:name="vtsen.hashnode.dev.newemptycomposeapp.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+	<permission android:name="vtsen.hashnode.dev.newemptycomposeapp.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSIONdx" android:protectionLevel="signature" />
+	<uses-permission android:name="vtsen.hashnode.dev.newemptycomposeapp.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSIONdx" />
 	<application android:allowBackup="true" android:appComponentFactory="androidx.core.app.CoreComponentFactory" android:debuggable="true" android:extractNativeLibs="false" android:icon="@mipmap/ic_launcher" android:label="@string/app_name" android:requestLegacyExternalStorage="true" android:roundIcon="@mipmap/ic_launcher_round" android:supportsRtl="true" android:theme="@style/Theme.App.Starting">
-		<activity android:exported="true" android:name="vtsen.hashnode.dev.newemptycomposeapp.ui.MainActivity">
+		<activity android:exported="true" android:name="vtsen.hashnode.dev.newemptycomposeapp.ui.MainActivity" android:theme="@style/Theme.App.Starting.NoActionBar">
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
 				<category android:name="android.intent.category.LAUNCHER" />
@@ -18,8 +18,8 @@
 		</activity>
 		<uses-library android:name="androidx.window.extensions" android:required="false" />
 		<uses-library android:name="androidx.window.sidecar" android:required="false" />
-		<activity android:exported="true" android:name="androidx.compose.ui.tooling.PreviewActivity" />
-		<provider android:authorities="vtsen.hashnode.dev.newemptycomposeapp.androidx-startup" android:exported="false" android:name="androidx.startup.InitializationProvider">
+		<activity android:exported="true" android:name="androidx.compose.ui.tooling.PreviewActivity" android:theme="@style/Theme.App.Starting.NoActionBar" />
+		<provider android:authorities="ir.steven750mc.lrc.androidx-startup" android:exported="false" android:name="androidx.startup.InitializationProvider">
 			<meta-data android:name="androidx.emoji2.text.EmojiCompatInitializer" android:value="androidx.startup" />
 			<meta-data android:name="androidx.lifecycle.ProcessLifecycleInitializer" android:value="androidx.startup" />
 			<meta-data android:name="androidx.profileinstaller.ProfileInstallerInitializer" android:value="androidx.startup" />
