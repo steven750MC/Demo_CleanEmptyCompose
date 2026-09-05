@@ -2,6 +2,7 @@ package vtsen.hashnode.dev.newemptycomposeapp.ui
 
 import android.Manifest
 import android.app.Activity
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -18,6 +19,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -81,6 +83,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Query
+import vtsen.hashnode.dev.newemptycomposeapp.ui.theme.AppTheme
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -267,6 +270,26 @@ object MusicRepository {
         }
     }
 
+    /**
+     * آهنگ را با پلیر موزیک پیش‌فرض گوشی یا از طریق لیست اپ‌های پیشنهادی سیستم باز می‌کند.
+     */
+    fun openWithPlayer(context: Context, song: SongItem) {
+        try {
+            val uri = ContentUris.withAppendedId(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                song.id,
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "audio/*")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(Intent.createChooser(intent, "باز کردن با"))
+        } catch (e: Exception) {
+            Toast.makeText(context, "برنامه‌ای برای پخش این آهنگ یافت نشد", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     fun scanAudioFiles(context: Context): List<SongItem> {
     val songs = mutableListOf<SongItem>()
     val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
@@ -318,8 +341,10 @@ object MusicRepository {
                 continue
             }
 
-            // حذف آهنگ‌هایی که عنوانشان بیش از ۱۳ کاراکتر و فقط شامل عدد است
-            if (finalTitle.length > 13 && finalTitle.all { it.isDigit() }) {
+            // حذف آهنگ‌هایی که عنوانشان بیش از ۱۳ کاراکتر است و پس از نادیده گرفتن
+            // آندرلاین (_) و فاصله (space)، فقط شامل عدد است
+            val strippedTitle = finalTitle.replace("_", "").replace(" ", "")
+            if (finalTitle.length > 13 && strippedTitle.isNotEmpty() && strippedTitle.all { it.isDigit() }) {
                 continue
             }
 
@@ -718,8 +743,8 @@ object PermissionHelper {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { //AppTypography defined in Type.kt
-            MaterialTheme(typography = AppTypography){
+        setContent { //AppTheme از ui/theme/Theme.kt که تایپوگرافی AppTypography رو هم داخلش داره
+            AppTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     AppRoot()
                 }
@@ -939,12 +964,17 @@ fun SongsScreen(viewModel: MusicLyricsViewModel) {
 }
 @Composable
 fun SongRow(song: SongItem, onToggle: () -> Unit) {
+    val context = LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(checked = song.selected, onCheckedChange = { onToggle() }, enabled = !song.hasLrc)
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable { MusicRepository.openWithPlayer(context, song) }
+        ) {
             Text(TextCleaner.clean(song.title), fontWeight = FontWeight.Medium)
             Text("${TextCleaner.clean(song.artist)}", style = MaterialTheme.typography.bodySmall)
             Text(formatDuration(song.durationMs), style = MaterialTheme.typography.bodySmall)
@@ -1032,9 +1062,14 @@ fun LrcRow(
     onCopyText: () -> Unit,
     onTranslate: () -> Unit,
 ) {
+    val context = LocalContext.current
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(TextCleaner.clean(song.title), fontWeight = FontWeight.Medium)
-        Text(TextCleaner.clean(song.artist), style = MaterialTheme.typography.bodySmall)
+        Column(
+            modifier = Modifier.clickable { MusicRepository.openWithPlayer(context, song) }
+        ) {
+            Text(TextCleaner.clean(song.title), fontWeight = FontWeight.Medium)
+            Text(TextCleaner.clean(song.artist), style = MaterialTheme.typography.bodySmall)
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Row {
             TextButton(onClick = onRegenerate) { Text("به‌روزرسانی") }
@@ -1070,7 +1105,7 @@ fun SettingsScreen(viewModel: MusicLyricsViewModel) {
                 SettingsStore.setApiInput(context, it)
             },
             label = { Text("کلید ترجمه") },
-            placeholder = { Text("v1beta/models/{selectedModel}:generateContent?key={API_KEY}") },
+            placeholder = { Text("") },
             singleLine = false,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -1111,4 +1146,4 @@ private fun formatDuration(ms: Long): String {
     val min = totalSec / 60
     val sec = totalSec % 60
     return "%d:%02d".format(min, sec)
-}
+}  
