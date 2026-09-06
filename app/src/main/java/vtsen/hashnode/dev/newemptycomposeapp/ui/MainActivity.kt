@@ -61,6 +61,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -102,6 +103,7 @@ data class SongItem(
     val filePath: String,
     var hasLrc: Boolean,
     var selected: Boolean = false,
+    var isTranslated: Boolean = false,
 )
 
 data class LrcLibResponse(
@@ -260,14 +262,53 @@ object MusicRepository {
             .build()
     }
 
+    private val timestampRegex = Regex("""\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]""")
+
+    /** حذف تگ‌های زمان‌بندی مثل [mm:ss:xx] از متن، برای دریافت متن خالص. */
+    private fun stripTimestamps(raw: String): String {
+        return raw.lineSequence()
+            .map { line -> timestampRegex.replace(line, "").trim() }
+            .filter { it.isNotBlank() }
+            .joinToString("\n")
+    }
+
+    /** متن آهنگ را بدون تگ‌های زمان‌بندی [mm:ss:xx] در کلیپ‌بورد کپی می‌کند. */
     fun copyLrcToClipboard(context: Context, song: SongItem) {
         val audioFile = File(song.filePath)
         val lrcFile = lrcFileFor(audioFile)
         if (lrcFile.exists()) {
-            val text = lrcFile.readText()
+            val plainText = stripTimestamps(lrcFile.readText())
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            val clip = android.content.ClipData.newPlainText("LRC", text)
+            val clip = android.content.ClipData.newPlainText("Lyrics", plainText)
             clipboard.setPrimaryClip(clip)
+        }
+    }
+
+    /**
+     * فایل LRC آهنگ را با برنامه‌های text editor / text reader نصب‌شده روی گوشی باز می‌کند.
+     * نیازمند تعریف FileProvider با authority "${'$'}{packageName}.fileprovider" در AndroidManifest است.
+     */
+    fun openLrcWithTextApp(context: Context, song: SongItem) {
+        val audioFile = File(song.filePath)
+        val lrcFile = lrcFileFor(audioFile)
+        if (!lrcFile.exists()) {
+            Toast.makeText(context, "فایل متن یافت نشد", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                lrcFile,
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "text/plain")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(Intent.createChooser(intent, "باز کردن با"))
+        } catch (e: Exception) {
+            Toast.makeText(context, "برنامه‌ای برای نمایش این متن یافت نشد", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -475,7 +516,7 @@ object MusicRepository {
     suspend fun translateLrcFile(context: Context, song: SongItem): TranslateResult {
         val apiInput = SettingsStore.getApiInput(context)
         if (apiInput.isBlank()) {
-            return TranslateResult.Error("مسیر API در تب تنظیمات وارد نشده است.")
+            return TranslateResult.Error("مسیر API در تب راهنما وارد نشده است.")
         }
 
         val audioFile = File(song.filePath)
@@ -619,7 +660,7 @@ class MusicLyricsViewModel(app: android.app.Application) : AndroidViewModel(app)
         }
     }
 
-    fun startFetchingLyrics() {
+    fun startFetchingLyrics(context: Context) {
         val target = _songs.value.filter { it.selected && !it.hasLrc }
         if (target.isEmpty()) return
         stopRequested = false
@@ -628,6 +669,7 @@ class MusicLyricsViewModel(app: android.app.Application) : AndroidViewModel(app)
         _currentIndex.value = 0
 
         viewModelScope.launch {
+            var successCount = 0
             for ((index, song) in target.withIndex()) {
                 if (stopRequested) break
                 _currentIndex.value = index + 1
@@ -635,14 +677,25 @@ class MusicLyricsViewModel(app: android.app.Application) : AndroidViewModel(app)
                     MusicRepository.fetchAndSaveLrc(song)
                 }
                 if (success) {
+                    successCount++
                     _songs.update { list ->
                         list.map { if (it.id == song.id) it.copy(hasLrc = true) else it }
+                    }
+                } else {
+                    // اگر متن پیدا نشد، انتخابش بردار
+                    _songs.update { list ->
+                        list.map { if (it.id == song.id) it.copy(selected = false) else it }
                     }
                 }
                 // فاصله‌ی زمانی مناسب بین درخواست‌ها طبق مستندات LRCLib
                 delay(350)
             }
             _status.value = ProcessStatus.DONE
+            Toast.makeText(
+                context.applicationContext,
+                "تعداد $successCount از ${target.size} متن یافت شد",
+                Toast.LENGTH_LONG,
+            ).show()
         }
     }
 
@@ -650,13 +703,14 @@ class MusicLyricsViewModel(app: android.app.Application) : AndroidViewModel(app)
         stopRequested = true
     }
 
+    /** بازیابی متن اصلی (غیرترجمه‌شده) از LRCLib؛ به عنوان عملکرد دکمه‌ی «حذف ترجمه» استفاده می‌شود. */
     fun regenerateLrc(song: SongItem) {
         viewModelScope.launch {
             _status.value = ProcessStatus.FETCHING
             val success = withContext(Dispatchers.IO) { MusicRepository.fetchAndSaveLrc(song) }
             if (success) {
                 _songs.update { list ->
-                    list.map { if (it.id == song.id) it.copy(hasLrc = true) else it }
+                    list.map { if (it.id == song.id) it.copy(hasLrc = true, isTranslated = false) else it }
                 }
             }
             _status.value = ProcessStatus.IDLE
@@ -667,7 +721,7 @@ class MusicLyricsViewModel(app: android.app.Application) : AndroidViewModel(app)
         val ok = MusicRepository.deleteLrc(song)
         if (ok) {
             _songs.update { list ->
-                list.map { if (it.id == song.id) it.copy(hasLrc = false) else it }
+                list.map { if (it.id == song.id) it.copy(hasLrc = false, isTranslated = false) else it }
             }
         }
     }
@@ -676,7 +730,7 @@ class MusicLyricsViewModel(app: android.app.Application) : AndroidViewModel(app)
      * فایل LRC آهنگ را با هوش مصنوعی ترجمه می‌کند.
      * onError زمانی فراخوانی می‌شود که پاسخ سرویس با "ss" شروع نشده باشد.
      */
-    fun translateLrc(song: SongItem, context: Context, onError: () -> Unit) {
+    fun translateLrc(song: SongItem, context: Context, onSuccess: () -> Unit, onError: () -> Unit) {
         viewModelScope.launch {
             _translatingSongId.value = song.id
             _translateError.value = null
@@ -687,6 +741,10 @@ class MusicLyricsViewModel(app: android.app.Application) : AndroidViewModel(app)
             when (result) {
                 is TranslateResult.Success -> {
                     _translateError.value = null
+                    _songs.update { list ->
+                        list.map { if (it.id == song.id) it.copy(isTranslated = true) else it }
+                    }
+                    onSuccess()
                 }
                 is TranslateResult.Error -> {
                     _translateError.value = result.message
@@ -734,6 +792,18 @@ object PermissionHelper {
         } else {
             arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
+    }
+}
+
+// =========================================================================================
+//  ابزار کمکی: باز کردن لینک‌ها
+// =========================================================================================
+
+private fun openUrl(context: Context, url: String) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    } catch (e: Exception) {
+        Toast.makeText(context, "امکان باز کردن این لینک وجود ندارد", Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -823,8 +893,9 @@ fun PermissionRequestScreen(onRequestClick: () -> Unit) {
 
 @Composable
 fun MainScreen(viewModel: MusicLyricsViewModel) {
+    // "راهنما" برگه‌ی پیش‌فرض است (index 0). برگه‌ی تنظیمات حذف شده و محتوایش داخل راهنما ادغام شده.
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("آهنگ‌ها", "متن‌ها", "تنظیمات")
+    val tabs = listOf("راهنما", "آهنگ‌ها", "متن‌ها")
 
     Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
         TabRow(selectedTabIndex = selectedTab) {
@@ -837,9 +908,9 @@ fun MainScreen(viewModel: MusicLyricsViewModel) {
             }
         }
         when (selectedTab) {
-            0 -> SongsScreen(viewModel)
-            1 -> LrcListScreen(viewModel, onOpenSettings = { selectedTab = 2 })
-            2 -> SettingsScreen(viewModel)
+            0 -> HelpScreen(viewModel)
+            1 -> SongsScreen(viewModel)
+            2 -> LrcListScreen(viewModel, onOpenSettings = { selectedTab = 0 })
         }
     }
 }
@@ -939,7 +1010,7 @@ fun SongsScreen(viewModel: MusicLyricsViewModel) {
                 Button(
                     onClick = {
                         if (NetworkHelper.requireInternetOrToast(context)) {
-                            viewModel.startFetchingLyrics()
+                            viewModel.startFetchingLyrics(context)
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -1028,22 +1099,30 @@ fun LrcListScreen(viewModel: MusicLyricsViewModel, onOpenSettings: () -> Unit) {
                 LrcRow(
                     song = song,
                     isTranslating = translatingSongId == song.id,
-                    onRegenerate = {
-                        if (NetworkHelper.requireInternetOrToast(context)) {
-                            viewModel.regenerateLrc(song)
-                        }
-                    },
+                    onOpenText = { MusicRepository.openLrcWithTextApp(context, song) },
                     onDelete = { viewModel.deleteLrc(song) },
                     onCopyText = { MusicRepository.copyLrcToClipboard(context, song) },
-                    onTranslate = {
+                    onTranslateToggle = {
                         if (NetworkHelper.requireInternetOrToast(context)) {
-                            viewModel.translateLrc(song, context) {
-                                Toast.makeText(
-                                    context,
-                                    "ترجمه با خطا مواجه شد؛ برای مشاهده‌ی جزئیات به تب تنظیمات بروید",
-                                    Toast.LENGTH_LONG,
-                                ).show()
-                                onOpenSettings()
+                            if (song.isTranslated) {
+                                // دکمه در حالت «حذف ترجمه» است: متن اصلی رو دوباره می‌گیره
+                                viewModel.regenerateLrc(song)
+                            } else {
+                                viewModel.translateLrc(
+                                    song = song,
+                                    context = context,
+                                    onSuccess = {
+                                        Toast.makeText(context, "ترجمه با موفقیت انجام شد", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = {
+                                        Toast.makeText(
+                                            context,
+                                            "ترجمه با خطا مواجه شد؛ برای مشاهده‌ی جزئیات به تب راهنما بروید",
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                        onOpenSettings()
+                                    },
+                                )
                             }
                         }
                     },
@@ -1058,10 +1137,10 @@ fun LrcListScreen(viewModel: MusicLyricsViewModel, onOpenSettings: () -> Unit) {
 fun LrcRow(
     song: SongItem,
     isTranslating: Boolean,
-    onRegenerate: () -> Unit,
+    onOpenText: () -> Unit,
     onDelete: () -> Unit,
     onCopyText: () -> Unit,
-    onTranslate: () -> Unit,
+    onTranslateToggle: () -> Unit,
 ) {
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
@@ -1073,72 +1152,205 @@ fun LrcRow(
         }
         Spacer(modifier = Modifier.height(4.dp))
         Row {
-            TextButton(onClick = onRegenerate) { Text("به‌روزرسانی") }
+            TextButton(onClick = onOpenText) { Text("بازکردن") }
             TextButton(onClick = onDelete) { Text("حذف") }
-            TextButton(onClick = onTranslate, enabled = !isTranslating) {
-                Text(if (isTranslating) "در حال ترجمه..." else "ترجمه")
+            TextButton(onClick = onTranslateToggle, enabled = !isTranslating) {
+                Text(
+                    when {
+                        isTranslating -> "در حال ترجمه..."
+                        song.isTranslated -> "حذف ترجمه"
+                        else -> "ترجمه"
+                    }
+                )
             }
             TextButton(onClick = onCopyText) { Text("کپی") }
         }
     }
 }
 
+// =========================================================================================
+//  برگه‌ی راهنما (شامل راهنمای استفاده و کلید ترجمه؛ جایگزین برگه‌ی تنظیمات قبلی)
+// =========================================================================================
+
 @Composable
-fun SettingsScreen(viewModel: MusicLyricsViewModel) {
+fun HelpScreen(viewModel: MusicLyricsViewModel) {
     val context = LocalContext.current
     var apiInput by remember { mutableStateOf(SettingsStore.getApiInput(context)) }
     val translateError by viewModel.translateError.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("تنظیمات ترجمه", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-        Spacer(modifier = Modifier.height(8.dp))
         Text(
-            "کلید ترجمه رو از steven750MC در جاهای مختلف بگیر." +
-                "بدون کلید ترجمه نمی‌تونی متن آهنگ هات رو فارسی کنی.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            "خوش اومدی! برای خوندن هر راهنما روش کلیک کن.",
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleMedium,
         )
         Spacer(modifier = Modifier.height(12.dp))
-        OutlinedTextField(
-            value = apiInput,
-            onValueChange = {
-                apiInput = it
-                SettingsStore.setApiInput(context, it)
-            },
-            label = { Text("کلید ترجمه") },
-            placeholder = { Text("") },
-            singleLine = false,
-            modifier = Modifier.fillMaxWidth(),
-        )
 
-        if (!translateError.isNullOrBlank()) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Surface(
-                color = MaterialTheme.colorScheme.errorContainer,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "خطای ترجمه",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                        )
-                        TextButton(onClick = { viewModel.clearTranslateError() }) { Text("بستن") }
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            item {
+                HelpItem(title = "چطور متن آهنگ‌ها رو دریافت کنم؟") {
                     Text(
-                        translateError ?: "",
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        style = MaterialTheme.typography.bodySmall,
+                        "از بالای صفحه، روی بخش «آهنگ‌ها» کلیک کن.\n" +
+                            "آهنگ‌های باکلام مورد نظرت رو انتخاب کن و دکمه‌ی «شروع دریافت متن» رو بزن.\n" +
+                            "نام آهنگ و هنرمند مهمه، اگر اطلاعات آهنگ دستکاری شده باشن یافتن متن به مشکل می‌خوره.",
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             }
+
+            item {
+                HelpItem(title = "متن‌ها رو کجا ببینم؟") {
+                    Column {
+                        Text(
+                            "این برنامه، پخش کننده‌ی آهنگ و متن نیست، متن‌های ساخته شده رو می‌تونی داخل موزیک پلیر گوشیت ببینی.\n" +
+                                "موزیک پلیر، برنامه‌ای هست که توش آهنگ گوش می‌دی. اگر متن‌های ساخته شده رو توی موزیک پلیرت ندیدی، یه موزیک پلیر جدید و مناسب از مایکت نصب کن:",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(onClick = { openUrl(context, "https://myket.ir/app/media.audioplayer.musicplayer") }) {
+                            Text("موزیک‌پلیر استاندارد")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "برای آهنگ‌های ترجمه‌شده هم متن فارسی رو نشون می‌ده هم انگلیسی.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+
+            item {
+                HelpItem(title = "چطور متن آهنگمو ترجمه کنم؟") {
+                    Column {
+                        Text(
+                            "آهااا، اینجا یکم تخصصی می‌شه...\n" +
+                                "باید یه کلید API هوش مصنوعی رو از سایت زیر بگیری:",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            "aistudio.google.com",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            "(فعلاََ تحریمه، باید یه جوری تحریمشو دور بزنی)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "فقط کافیه واردش بشی و از بخش API Keys دکمه‌ی کپی کلیدی که گوگل برات ساخته رو بزنی.\n" +
+                                "رایگانه، محدودیت زیادی نداره و اگر کلید به طور پیش‌فرض ساخته نشده بود باید خودت بسازی.\n" +
+                                "بعد از کپی کردن کلید، اونو با فرمت زیر بذار توی کادر کلید ترجمه:",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "v1beta/models/gemini-3.5-flash-lite:generateContent?key=کلیدکپی‌شده",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = apiInput,
+                            onValueChange = {
+                                apiInput = it
+                                SettingsStore.setApiInput(context, it)
+                            },
+                            label = { Text("کلید ترجمه") },
+                            placeholder = { Text("بنویس...") },
+                            singleLine = false,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "بعدش دکمه‌ی ترجمه که توی بخش «متن‌ها» هست برات کار می‌کنه!😁",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "نکته: برنامه جوری طراحی شده که برای ترجمه، تحریم رو دور می‌زنه. فقط برای دریافت کلید نیاز به تحریم شکن خوبی داری.\n" +
+                                "کلیدی که وارد می‌کنی فقط روی دستگاه خودته و هیچ محدودیتی از سوی برنامه روش اعمال نمی‌شه.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+
+                        if (!translateError.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            "خطای ترجمه",
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                        )
+                                        TextButton(onClick = { viewModel.clearTranslateError() }) { Text("بستن") }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        translateError ?: "",
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                HelpItem(title = "پشتیبانی") {
+                    Column {
+                        Text(
+                            "سلاممم! جهت پیشنهاد، انتقاد و هرگونه درخواست می‌تونی به سازنده پیام بدی😁",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text("سروش‌پلاس، تلگرام و روبیکا: steven750MC@", style = MaterialTheme.typography.bodyMedium)
+                        Text("وبسایت: steven750MC.github.io", style = MaterialTheme.typography.bodyMedium)
+                        Text("ایمیل: steven750mcc@gmail.com", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(onClick = { openUrl(context, "myket://comment?id=ir.steven750mc.lrc") }) {
+                            Text("ارسال نظر")
+                        }
+                    }
+                }
+            }
         }
+    }
+}
+
+/**
+ * یک ردیف راهنمای قابل باز و بسته شدن: با کلیک روی عنوان (که درشت نمایش داده می‌شود)،
+ * محتوای زیرش نمایش داده می‌شود یا مخفی می‌شود؛ معادل رفتار کلاس openable در نسخه‌ی HTML.
+ */
+@Composable
+fun HelpItem(title: String, content: @Composable () -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(
+            text = title,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(vertical = 8.dp),
+        )
+        if (expanded) {
+            Column(modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 8.dp)) {
+                content()
+            }
+        }
+        Divider()
     }
 }
 
@@ -1147,4 +1359,4 @@ private fun formatDuration(ms: Long): String {
     val min = totalSec / 60
     val sec = totalSec % 60
     return "%d:%02d".format(min, sec)
-}  
+}
