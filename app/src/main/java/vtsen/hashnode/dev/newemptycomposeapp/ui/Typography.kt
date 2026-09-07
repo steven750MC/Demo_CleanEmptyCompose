@@ -1,12 +1,11 @@
 package vtsen.hashnode.dev.newemptycomposeapp.ui
 
 import androidx.compose.material3.Typography
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
-import vtsen.hashnode.dev.newemptycomposeapp.R
+import vtsen.hashnode.dev.newemptycomposeapp.ui.R
+
 
 val AppFontFamily = FontFamily(
     Font(R.font.font, FontWeight.Normal),
@@ -15,7 +14,9 @@ val AppFontFamily = FontFamily(
     Font(R.font.font, FontWeight.Light)
 )
 
+
 val AppTypography = Typography(
+    
     bodyLarge = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.Normal,
@@ -30,6 +31,11 @@ val AppTypography = Typography(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp
+    ),
+    bodyTiny = TextStyle(
+        fontFamily = AppFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 9.sp
     ),
     titleLarge = TextStyle(
         fontFamily = AppFontFamily,
