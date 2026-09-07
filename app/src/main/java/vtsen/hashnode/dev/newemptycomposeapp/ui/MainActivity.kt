@@ -1099,7 +1099,7 @@ fun LrcListScreen(viewModel: MusicLyricsViewModel, onOpenSettings: () -> Unit) {
                 LrcRow(
                     song = song,
                     isTranslating = translatingSongId == song.id,
-                    onOpenText = { MusicRepository.openLrcWithTextApp(context, song) },
+                   // onOpenText = { MusicRepository.openLrcWithTextApp(context, song) },
                     onDelete = { viewModel.deleteLrc(song) },
                     onCopyText = { MusicRepository.copyLrcToClipboard(context, song) },
                     onTranslateToggle = {
@@ -1152,7 +1152,7 @@ fun LrcRow(
         }
         Spacer(modifier = Modifier.height(4.dp))
         Row {
-            TextButton(onClick = onOpenText) { Text("فایل") }
+         //   TextButton(onClick = onOpenText) { Text("فایل") }
             TextButton(onClick = onDelete) { Text("حذف") }
             TextButton(onClick = onTranslateToggle, enabled = !isTranslating) {
                 Text(
@@ -1246,8 +1246,8 @@ fun HelpScreen(viewModel: MusicLyricsViewModel) {
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            "v1beta/models/gemini-3.5-flash-lite:generateContent?key=❤️ ",
-                            style = MaterialTheme.typography.bodySmall,
+                            "v1beta/models/gemini-3.5-flash-lite:generateContent?key=❤️‎ ‎ ",
+                            style = MaterialTheme.typography.bodyTiny,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -1312,15 +1312,21 @@ fun HelpScreen(viewModel: MusicLyricsViewModel) {
                     Column {
                         Text(
                             "سلاممم! جهت پیشنهاد، انتقاد و هرگونه درخواست می‌تونی به سازنده پیام بدی😁",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyLarge,
                         )
                         Text("سروش‌پلاس، تلگرام و روبیکا: steven750MC@", style = MaterialTheme.typography.bodyMedium)
                         Text("وبسایت: steven750MC.github.io", style = MaterialTheme.typography.bodyMedium)
                         Text("ایمیل: steven750mcc@gmail.com", style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
                         Button(onClick = { openUrl(context, "myket://comment?id=ir.steven750mc.lrc") }) {
                             Text("ارسال نظر")
                         }
+                        Spacer(modifier = Modifier.height(26.dp))
+                        Text(
+                            "استیون - 2026 - شانزده‌سالگی",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
