@@ -1247,7 +1247,7 @@ fun HelpScreen(viewModel: MusicLyricsViewModel) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             "v1beta/models/gemini-3.5-flash-lite:generateContent?key=❤️‎ ‎ ",
-                            style = MaterialTheme.typography.bodyTiny,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(modifier = Modifier.height(8.dp))
