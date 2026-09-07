@@ -47,6 +47,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -57,8 +58,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -816,8 +819,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent { //AppTheme از ui/theme/Theme.kt که تایپوگرافی AppTypography رو هم داخلش داره
             NewEmptyComposeAppTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    AppRoot()
+                // کل برنامه همیشه RTL نمایش داده می‌شود، مستقل از زبان سیستم گوشی.
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                    Surface(modifier = Modifier.fillMaxSize()) {
+                        AppRoot()
+                    }
                 }
             }
         }
@@ -940,6 +946,8 @@ fun SongsScreen(viewModel: MusicLyricsViewModel) {
     val allSelected = selectableSongs.isNotEmpty() && selectableSongs.all { it.selected }
     val someSelected = songs.any { it.selected && !it.hasLrc }
 
+    // لیست آهنگ‌ها همیشه LTR نمایش داده می‌شود (نام آهنگ‌ها اغلب انگلیسی هستند).
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         OutlinedTextField(
             value = searchQuery,
@@ -1033,6 +1041,7 @@ fun SongsScreen(viewModel: MusicLyricsViewModel) {
             }
         }
     }
+    }
 }
 @Composable
 fun SongRow(song: SongItem, onToggle: () -> Unit) {
@@ -1076,6 +1085,8 @@ fun LrcListScreen(viewModel: MusicLyricsViewModel, onOpenSettings: () -> Unit) {
         }
     }
 
+    // لیست متن‌ها هم مانند لیست آهنگ‌ها همیشه LTR نمایش داده می‌شود.
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         OutlinedTextField(
             value = searchQuery,
@@ -1131,6 +1142,7 @@ fun LrcListScreen(viewModel: MusicLyricsViewModel, onOpenSettings: () -> Unit) {
             }
         }
     }
+    }
 }
 
 @Composable
@@ -1178,6 +1190,7 @@ fun HelpScreen(viewModel: MusicLyricsViewModel) {
     var apiInput by remember { mutableStateOf(SettingsStore.getApiInput(context)) }
     val translateError by viewModel.translateError.collectAsState()
 
+    // برگه‌ی راهنما همیشه RTL است (این تابع در ادامه، توسط RTL کلی برنامه هم پوشش داده می‌شود).
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text(
             "خوش اومدی! برای خوندن هر راهنما روش کلیک کن.",
@@ -1231,6 +1244,7 @@ fun HelpScreen(viewModel: MusicLyricsViewModel) {
                             "aistudio.google.com",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { openUrl(context, "https://aistudio.google.com") },
                         )
                         Text(
                             "(فعلاََ تحریمه، باید یه جوری تحریمشو دور بزنی)",
