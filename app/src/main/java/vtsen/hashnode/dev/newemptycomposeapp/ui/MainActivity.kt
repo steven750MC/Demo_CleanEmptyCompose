@@ -1137,7 +1137,7 @@ fun LrcListScreen(viewModel: MusicLyricsViewModel, onOpenSettings: () -> Unit) {
 fun LrcRow(
     song: SongItem,
     isTranslating: Boolean,
-    onOpenText: () -> Unit,
+   // onOpenText: () -> Unit,
     onDelete: () -> Unit,
     onCopyText: () -> Unit,
     onTranslateToggle: () -> Unit,
