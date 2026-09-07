@@ -302,7 +302,7 @@ object MusicRepository {
                 lrcFile,
             )
             val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "text/plain")
+                setDataAndType(uri, "text/*")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
@@ -1152,7 +1152,7 @@ fun LrcRow(
         }
         Spacer(modifier = Modifier.height(4.dp))
         Row {
-            TextButton(onClick = onOpenText) { Text("بازکردن") }
+            TextButton(onClick = onOpenText) { Text("فایل") }
             TextButton(onClick = onDelete) { Text("حذف") }
             TextButton(onClick = onTranslateToggle, enabled = !isTranslating) {
                 Text(
@@ -1241,12 +1241,12 @@ fun HelpScreen(viewModel: MusicLyricsViewModel) {
                         Text(
                             "فقط کافیه واردش بشی و از بخش API Keys دکمه‌ی کپی کلیدی که گوگل برات ساخته رو بزنی.\n" +
                                 "رایگانه، محدودیت زیادی نداره و اگر کلید به طور پیش‌فرض ساخته نشده بود باید خودت بسازی.\n" +
-                                "بعد از کپی کردن کلید، اونو با فرمت زیر بذار توی کادر کلید ترجمه:",
+                                "بعد از کپی کردن کلید، اونو با فرمت زیر بذار توی کادر کلید ترجمه(کلید به جای قلب):",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            "v1beta/models/gemini-3.5-flash-lite:generateContent?key=کلیدکپی‌شده",
+                            "v1beta/models/gemini-3.5-flash-lite:generateContent?key=❤️ ",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
