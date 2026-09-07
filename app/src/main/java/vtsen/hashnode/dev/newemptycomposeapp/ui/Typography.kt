@@ -30,12 +30,7 @@ val AppTypography = Typography(
     bodySmall = TextStyle(
         fontFamily = AppFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 12.sp
-    ),
-    bodyTiny = TextStyle(
-        fontFamily = AppFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 9.sp
+        fontSize = 10.sp
     ),
     titleLarge = TextStyle(
         fontFamily = AppFontFamily,
