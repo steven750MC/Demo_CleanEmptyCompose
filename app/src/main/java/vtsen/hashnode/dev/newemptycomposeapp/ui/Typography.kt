@@ -9,10 +9,7 @@ import androidx.compose.ui.unit.sp
 import vtsen.hashnode.dev.newemptycomposeapp.R
 
 val AppFontFamily = FontFamily(
-    Font(R.font.font_regular, FontWeight.Normal),
-    Font(R.font.font_medium, FontWeight.Medium),
-    Font(R.font.font_bold, FontWeight.Bold),
-    Font(R.font.font_light, FontWeight.Light)
+    Font(R.font.font)
 )
 
 val AppTypography = Typography(
@@ -61,11 +58,4 @@ val AppTypography = Typography(
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp
     )
-)
-
-// If you need a custom text style like bodyTiny, you can define it separately
-val BodyTinyTextStyle = TextStyle(
-    fontFamily = AppFontFamily,
-    fontWeight = FontWeight.Normal,
-    fontSize = 9.sp
 )
